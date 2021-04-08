@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 // [START import_classes]
 import com.google.firebase.appindexing.FirebaseAppIndex
@@ -11,37 +12,41 @@ import com.google.firebase.appindexing.FirebaseUserActions
 import com.google.firebase.appindexing.Indexable
 import com.google.firebase.appindexing.builders.Actions
 // [END import_classes]
-import com.google.samples.quickstart.appindexing.R
-import kotlinx.android.synthetic.main.activity_main.addStickersBtn
-import kotlinx.android.synthetic.main.activity_main.clearStickersBtn
-import kotlinx.android.synthetic.main.activity_main.link
-
+import com.google.samples.quickstart.appindexing.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
 
     private var articleId: String? = null
+    private lateinit var binding: ActivityMainBinding
+    private lateinit var linkText: TextView
 
     // [START handle_intent]
     override fun onCreate(savedInstanceState: Bundle?) {
         // [START_EXCLUDE]
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        val firebaseAppIndex = FirebaseAppIndex.getInstance()
+        val firebaseAppIndex = FirebaseAppIndex.getInstance(this)
 
-        addStickersBtn.setOnClickListener { startService(Intent(baseContext, AppIndexingService::class.java)) }
+        with(binding) {
+            addStickersBtn.setOnClickListener { startService(Intent(baseContext, AppIndexingService::class.java)) }
 
-        clearStickersBtn.setOnClickListener { AppIndexingUtil.clearStickers(baseContext, firebaseAppIndex) }
+            clearStickersBtn.setOnClickListener { AppIndexingUtil.clearStickers(baseContext, firebaseAppIndex) }
+        }
+        linkText = binding.link
+
         // [END_EXCLUDE]
         onNewIntent(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
         val action = intent.action
         val data = intent.data
         if (Intent.ACTION_VIEW == action && data != null) {
             articleId = data.lastPathSegment
-            link.text = data.toString()
+            linkText.text = data.toString()
         }
     }
     // [END handle_intent]
@@ -62,7 +67,7 @@ class MainActivity : AppCompatActivity() {
                 .setUrl(appUri)
                 .build()
 
-        val task = FirebaseAppIndex.getInstance().update(articleToIndex)
+        val task = FirebaseAppIndex.getInstance(this).update(articleToIndex)
 
         // If the Task is already complete, a call to the listener will be immediately
         // scheduled
@@ -73,7 +78,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         // log the view action
-        val actionTask = FirebaseUserActions.getInstance().start(Actions.newView(TITLE,
+        val actionTask = FirebaseUserActions.getInstance(this).start(Actions.newView(TITLE,
                 appUri))
 
         actionTask.addOnSuccessListener(this) {
@@ -94,7 +99,7 @@ class MainActivity : AppCompatActivity() {
         val baseUrl = Uri.parse("https://www.example.com/kotlin_articles/")
         val appUri = baseUrl.buildUpon().appendPath(articleId).build().toString()
 
-        val actionTask = FirebaseUserActions.getInstance().end(Actions.newView(TITLE,
+        val actionTask = FirebaseUserActions.getInstance(this).end(Actions.newView(TITLE,
                 appUri))
 
         actionTask.addOnSuccessListener(this) {

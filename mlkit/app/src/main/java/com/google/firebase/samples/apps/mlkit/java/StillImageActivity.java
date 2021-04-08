@@ -14,15 +14,24 @@
 package com.google.firebase.samples.apps.mlkit.java;
 
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
+import android.graphics.ImageDecoder;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
 import android.util.Log;
 import android.util.Pair;
+import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
@@ -30,20 +39,20 @@ import android.view.View.OnClickListener;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemSelectedListener;
 import android.widget.ArrayAdapter;
-import android.widget.Button;
-import android.widget.ImageView;
 import android.widget.PopupMenu;
 import android.widget.PopupMenu.OnMenuItemClickListener;
 import android.widget.Spinner;
 
 import com.google.android.gms.common.annotation.KeepName;
 import com.google.firebase.samples.apps.mlkit.R;
-import com.google.firebase.samples.apps.mlkit.common.GraphicOverlay;
 import com.google.firebase.samples.apps.mlkit.common.VisionImageProcessor;
+import com.google.firebase.samples.apps.mlkit.databinding.ActivityStillImageBinding;
 import com.google.firebase.samples.apps.mlkit.java.cloudimagelabeling.CloudImageLabelingProcessor;
 import com.google.firebase.samples.apps.mlkit.java.cloudlandmarkrecognition.CloudLandmarkRecognitionProcessor;
 import com.google.firebase.samples.apps.mlkit.java.cloudtextrecognition.CloudDocumentTextRecognitionProcessor;
 import com.google.firebase.samples.apps.mlkit.java.cloudtextrecognition.CloudTextRecognitionProcessor;
+import com.google.firebase.samples.apps.mlkit.common.preference.SettingsActivity;
+import com.google.firebase.samples.apps.mlkit.common.preference.SettingsActivity.LaunchSource;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,6 +63,7 @@ import java.util.List;
 public final class StillImageActivity extends AppCompatActivity {
 
   private static final String TAG = "StillImageActivity";
+  private static final int PERMISSION_REQUESTS = 1;
 
   private static final String CLOUD_LABEL_DETECTION = "Cloud Label";
   private static final String CLOUD_LANDMARK_DETECTION = "Landmark";
@@ -75,9 +85,6 @@ public final class StillImageActivity extends AppCompatActivity {
   private static final int REQUEST_IMAGE_CAPTURE = 1001;
   private static final int REQUEST_CHOOSE_IMAGE = 1002;
 
-  private Button getImageButton;
-  private ImageView preview;
-  private GraphicOverlay graphicOverlay;
   private String selectedMode = CLOUD_LABEL_DETECTION;
   private String selectedSize = SIZE_PREVIEW;
 
@@ -88,17 +95,17 @@ public final class StillImageActivity extends AppCompatActivity {
   private Integer imageMaxWidth;
   // Max height (portrait mode)
   private Integer imageMaxHeight;
-  private Bitmap bitmapForDetection;
   private VisionImageProcessor imageProcessor;
+
+  private ActivityStillImageBinding binding;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+    binding = ActivityStillImageBinding.inflate(getLayoutInflater());
+    setContentView(binding.getRoot());
 
-    setContentView(R.layout.activity_still_image);
-
-    getImageButton = findViewById(R.id.getImageButton);
-    getImageButton.setOnClickListener(
+    binding.getImageButton.setOnClickListener(
         new OnClickListener() {
           @Override
           public void onClick(View view) {
@@ -126,14 +133,6 @@ public final class StillImageActivity extends AppCompatActivity {
             popup.show();
           }
         });
-    preview = findViewById(R.id.previewPane);
-    if (preview == null) {
-      Log.d(TAG, "Preview is null");
-    }
-    graphicOverlay = findViewById(R.id.previewOverlay);
-    if (graphicOverlay == null) {
-      Log.d(TAG, "graphicOverlay is null");
-    }
 
     populateFeatureSelector();
     populateSizeSelector();
@@ -153,6 +152,85 @@ public final class StillImageActivity extends AppCompatActivity {
         tryReloadAndDetectInImage();
       }
     }
+
+    if (!allPermissionsGranted()) {
+      getRuntimePermissions();
+    }
+  }
+
+  @Override
+  public void onResume() {
+    super.onResume();
+    Log.d(TAG, "onResume");
+    createImageProcessor();
+    tryReloadAndDetectInImage();
+  }
+
+  private String[] getRequiredPermissions() {
+    try {
+      PackageInfo info =
+              this.getPackageManager()
+                      .getPackageInfo(this.getPackageName(), PackageManager.GET_PERMISSIONS);
+      String[] ps = info.requestedPermissions;
+      if (ps != null && ps.length > 0) {
+        return ps;
+      } else {
+        return new String[0];
+      }
+    } catch (Exception e) {
+      return new String[0];
+    }
+  }
+
+  private boolean allPermissionsGranted() {
+    for (String permission : getRequiredPermissions()) {
+      if (!isPermissionGranted(this, permission)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private void getRuntimePermissions() {
+    List<String> allNeededPermissions = new ArrayList<>();
+    for (String permission : getRequiredPermissions()) {
+      if (!isPermissionGranted(this, permission)) {
+        allNeededPermissions.add(permission);
+      }
+    }
+
+    if (!allNeededPermissions.isEmpty()) {
+      ActivityCompat.requestPermissions(
+              this, allNeededPermissions.toArray(new String[0]), PERMISSION_REQUESTS);
+    }
+  }
+
+  private static boolean isPermissionGranted(Context context, String permission) {
+    if (ContextCompat.checkSelfPermission(context, permission)
+            == PackageManager.PERMISSION_GRANTED) {
+      Log.i(TAG, "Permission granted: " + permission);
+      return true;
+    }
+    Log.i(TAG, "Permission NOT granted: " + permission);
+    return false;
+  }
+
+  @Override
+  public boolean onCreateOptionsMenu(Menu menu) {
+    getMenuInflater().inflate(R.menu.still_image_menu, menu);
+    return true;
+  }
+
+  @Override
+  public boolean onOptionsItemSelected(MenuItem item) {
+    if (item.getItemId() == R.id.settings) {
+      Intent intent = new Intent(this, SettingsActivity.class);
+      intent.putExtra(SettingsActivity.EXTRA_LAUNCH_SOURCE, LaunchSource.STILL_IMAGE);
+      startActivity(intent);
+      return true;
+    }
+
+    return super.onOptionsItemSelected(item);
   }
 
   private void populateFeatureSelector() {
@@ -229,7 +307,7 @@ public final class StillImageActivity extends AppCompatActivity {
   private void startCameraIntentForResult() {
     // Clean up last time's image
     imageUri = null;
-    preview.setImageBitmap(null);
+    binding.previewPane.setImageBitmap(null);
 
     Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
     if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
@@ -251,6 +329,7 @@ public final class StillImageActivity extends AppCompatActivity {
 
   @Override
   protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    super.onActivityResult(requestCode, resultCode, data);
     if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
       tryReloadAndDetectInImage();
     } else if (requestCode == REQUEST_CHOOSE_IMAGE && resultCode == RESULT_OK) {
@@ -267,9 +346,15 @@ public final class StillImageActivity extends AppCompatActivity {
       }
 
       // Clear the overlay first
-      graphicOverlay.clear();
+      binding.previewOverlay.clear();
 
-      Bitmap imageBitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
+      Bitmap imageBitmap;
+      if (Build.VERSION.SDK_INT < 29) {
+        imageBitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), imageUri);
+      } else {
+        ImageDecoder.Source source = ImageDecoder.createSource(getContentResolver(), imageUri);
+        imageBitmap = ImageDecoder.decodeBitmap(source);
+      }
 
       // Get the dimensions of the View
       Pair<Integer, Integer> targetedSize = getTargetedWidthHeight();
@@ -290,10 +375,9 @@ public final class StillImageActivity extends AppCompatActivity {
               (int) (imageBitmap.getHeight() / scaleFactor),
               true);
 
-      preview.setImageBitmap(resizedBitmap);
-      bitmapForDetection = resizedBitmap;
+      binding.previewPane.setImageBitmap(resizedBitmap);
 
-      imageProcessor.process(bitmapForDetection, graphicOverlay);
+      imageProcessor.process(resizedBitmap, binding.previewOverlay);
     } catch (IOException e) {
       Log.e(TAG, "Error retrieving saved image");
     }
@@ -307,9 +391,9 @@ public final class StillImageActivity extends AppCompatActivity {
       // a UI layout pass to get the right values. So delay it to first time image rendering time.
       if (isLandScape) {
         imageMaxWidth =
-            ((View) preview.getParent()).getHeight() - findViewById(R.id.controlPanel).getHeight();
+            ((View) binding.previewPane.getParent()).getHeight() - binding.controlPanel.getHeight();
       } else {
-        imageMaxWidth = ((View) preview.getParent()).getWidth();
+        imageMaxWidth = ((View) binding.previewPane.getParent()).getWidth();
       }
     }
 
@@ -323,10 +407,10 @@ public final class StillImageActivity extends AppCompatActivity {
       // Calculate the max width in portrait mode. This is done lazily since we need to wait for
       // a UI layout pass to get the right values. So delay it to first time image rendering time.
       if (isLandScape) {
-        imageMaxHeight = ((View) preview.getParent()).getWidth();
+        imageMaxHeight = ((View) binding.previewPane.getParent()).getWidth();
       } else {
         imageMaxHeight =
-            ((View) preview.getParent()).getHeight() - findViewById(R.id.controlPanel).getHeight();
+            ((View) binding.previewPane.getParent()).getHeight() - findViewById(R.id.controlPanel).getHeight();
       }
     }
 

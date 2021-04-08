@@ -21,7 +21,6 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
-import android.widget.Button;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -37,6 +36,7 @@ import com.google.firebase.appindexing.Indexable;
 import com.google.firebase.appindexing.builders.Actions;
 // [END import_classes]
 import com.google.samples.quickstart.appindexing.R;
+import com.google.samples.quickstart.appindexing.databinding.ActivityMainBinding;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -50,19 +50,18 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         // [START_EXCLUDE]
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        ActivityMainBinding binding = ActivityMainBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
 
-        final FirebaseAppIndex firebaseAppIndex = FirebaseAppIndex.getInstance();
+        final FirebaseAppIndex firebaseAppIndex = FirebaseAppIndex.getInstance(this);
 
-        Button addStickersBtn = findViewById(R.id.addStickersBtn);
-        addStickersBtn.setOnClickListener(new View.OnClickListener() {
+        binding.addStickersBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 startService(new Intent(MainActivity.this, AppIndexingService.class));
             }
         });
-        Button clearStickersBtn = findViewById(R.id.clearStickersBtn);
-        clearStickersBtn.setOnClickListener(new View.OnClickListener() {
+        binding.clearStickersBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 AppIndexingUtil.clearStickers(MainActivity.this, firebaseAppIndex);
@@ -73,6 +72,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
         String action = intent.getAction();
         Uri data = intent.getData();
         if (Intent.ACTION_VIEW.equals(action) && data != null) {
@@ -96,7 +96,7 @@ public class MainActivity extends AppCompatActivity {
                 .setUrl(APP_URI)
                 .build();
 
-        Task<Void> task = FirebaseAppIndex.getInstance().update(articleToIndex);
+        Task<Void> task = FirebaseAppIndex.getInstance(this).update(articleToIndex);
 
         // If the Task is already complete, a call to the listener will be immediately
         // scheduled
@@ -116,7 +116,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // log the view action
-        Task<Void> actionTask = FirebaseUserActions.getInstance().start(Actions.newView(TITLE,
+        Task<Void> actionTask = FirebaseUserActions.getInstance(this).start(Actions.newView(TITLE,
                 APP_URI));
 
         actionTask.addOnSuccessListener(MainActivity.this, new OnSuccessListener<Void>() {
@@ -143,7 +143,7 @@ public class MainActivity extends AppCompatActivity {
         final Uri BASE_URL = Uri.parse("https://www.example.com/articles/");
         final String APP_URI = BASE_URL.buildUpon().appendPath(articleId).build().toString();
 
-        Task<Void> actionTask = FirebaseUserActions.getInstance().end(Actions.newView(TITLE,
+        Task<Void> actionTask = FirebaseUserActions.getInstance(this).end(Actions.newView(TITLE,
                 APP_URI));
 
         actionTask.addOnSuccessListener(MainActivity.this, new OnSuccessListener<Void>() {

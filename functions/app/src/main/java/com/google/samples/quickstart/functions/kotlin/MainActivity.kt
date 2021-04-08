@@ -4,28 +4,23 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import com.google.android.material.snackbar.Snackbar
-import androidx.appcompat.app.AppCompatActivity
 import android.text.TextUtils
 import android.util.Log
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import androidx.appcompat.app.AppCompatActivity
 import com.firebase.ui.auth.AuthUI
 import com.firebase.ui.auth.IdpResponse
 import com.google.android.gms.tasks.OnCompleteListener
 import com.google.android.gms.tasks.Task
-import com.google.firebase.auth.FirebaseAuth
+import com.google.android.material.snackbar.Snackbar
+import com.google.firebase.auth.ktx.auth
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.functions.FirebaseFunctionsException
+import com.google.firebase.functions.ktx.functions
+import com.google.firebase.ktx.Firebase
 import com.google.samples.quickstart.functions.R
-import kotlinx.android.synthetic.main.activity_main.buttonAddMessage
-import kotlinx.android.synthetic.main.activity_main.buttonCalculate
-import kotlinx.android.synthetic.main.activity_main.buttonSignIn
-import kotlinx.android.synthetic.main.activity_main.fieldAddResult
-import kotlinx.android.synthetic.main.activity_main.fieldFirstNumber
-import kotlinx.android.synthetic.main.activity_main.fieldMessageInput
-import kotlinx.android.synthetic.main.activity_main.fieldMessageOutput
-import kotlinx.android.synthetic.main.activity_main.fieldSecondNumber
+import com.google.samples.quickstart.functions.databinding.ActivityMainBinding
 
 /**
  * This activity demonstrates the Android SDK for Callable Functions.
@@ -39,16 +34,21 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
     private lateinit var functions: FirebaseFunctions
     // [END define_functions_instance]
 
+    private lateinit var binding: ActivityMainBinding
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        buttonCalculate.setOnClickListener(this)
-        buttonAddMessage.setOnClickListener(this)
-        buttonSignIn.setOnClickListener(this)
+        with(binding) {
+            buttonCalculate.setOnClickListener(this@MainActivity)
+            buttonAddMessage.setOnClickListener(this@MainActivity)
+            buttonSignIn.setOnClickListener(this@MainActivity)
+        }
 
         // [START initialize_functions_instance]
-        functions = FirebaseFunctions.getInstance()
+        functions = Firebase.functions
         // [END initialize_functions_instance]
     }
 
@@ -102,8 +102,8 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
         hideKeyboard()
 
         try {
-            firstNumber = Integer.parseInt(fieldFirstNumber.text.toString())
-            secondNumber = Integer.parseInt(fieldSecondNumber.text.toString())
+            firstNumber = Integer.parseInt(binding.fieldFirstNumber.text.toString())
+            secondNumber = Integer.parseInt(binding.fieldSecondNumber.text.toString())
         } catch (e: NumberFormatException) {
             showSnackbar("Please enter two numbers.")
             return
@@ -111,7 +111,7 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
         // [START call_add_numbers]
         addNumbers(firstNumber, secondNumber)
-                .addOnCompleteListener(OnCompleteListener { task ->
+                .addOnCompleteListener { task ->
                     if (!task.isSuccessful) {
                         val e = task.exception
                         if (e is FirebaseFunctionsException) {
@@ -128,20 +128,20 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
                         // [START_EXCLUDE]
                         Log.w(TAG, "addNumbers:onFailure", e)
                         showSnackbar("An error occurred.")
-                        return@OnCompleteListener
+                        return@addOnCompleteListener
                         // [END_EXCLUDE]
                     }
 
                     // [START_EXCLUDE]
                     val result = task.result
-                    fieldAddResult.setText(result.toString())
+                    binding.fieldAddResult.setText(result.toString())
                     // [END_EXCLUDE]
-                })
+                }
         // [END call_add_numbers]
     }
 
     private fun onAddMessageClicked() {
-        val inputMessage = fieldMessageInput.text.toString()
+        val inputMessage = binding.fieldMessageInput.text.toString()
 
         if (TextUtils.isEmpty(inputMessage)) {
             showSnackbar("Please enter a message.")
@@ -167,14 +167,14 @@ class MainActivity : AppCompatActivity(), View.OnClickListener {
 
                     // [START_EXCLUDE]
                     val result = task.result
-                    fieldMessageOutput.setText(result)
+                    binding.fieldMessageOutput.setText(result)
                     // [END_EXCLUDE]
                 })
         // [END call_add_message]
     }
 
     private fun onSignInClicked() {
-        if (FirebaseAuth.getInstance().currentUser != null) {
+        if (Firebase.auth.currentUser != null) {
             showSnackbar("Signed in.")
             return
         }

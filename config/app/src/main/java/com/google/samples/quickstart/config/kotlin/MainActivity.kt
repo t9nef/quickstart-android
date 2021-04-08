@@ -1,40 +1,42 @@
 package com.google.samples.quickstart.config.kotlin
 
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
 import android.util.Log
 import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import com.google.firebase.ktx.Firebase
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
-import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings
-import com.google.samples.quickstart.config.BuildConfig
+import com.google.firebase.remoteconfig.ktx.get
+import com.google.firebase.remoteconfig.ktx.remoteConfig
+import com.google.firebase.remoteconfig.ktx.remoteConfigSettings
 import com.google.samples.quickstart.config.R
-import kotlinx.android.synthetic.main.activity_main.fetchButton
-import kotlinx.android.synthetic.main.activity_main.welcomeTextView
+import com.google.samples.quickstart.config.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var remoteConfig: FirebaseRemoteConfig
+    private lateinit var binding: ActivityMainBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        fetchButton.setOnClickListener { fetchWelcome() }
+        binding.fetchButton.setOnClickListener { fetchWelcome() }
 
         // Get Remote Config instance.
         // [START get_remote_config_instance]
-        remoteConfig = FirebaseRemoteConfig.getInstance()
+        remoteConfig = Firebase.remoteConfig
         // [END get_remote_config_instance]
 
         // Create a Remote Config Setting to enable developer mode, which you can use to increase
         // the number of fetches available per hour during development. Also use Remote Config
         // Setting to set the minimum fetch interval.
         // [START enable_dev_mode]
-        val configSettings = FirebaseRemoteConfigSettings.Builder()
-                .setDeveloperModeEnabled(BuildConfig.DEBUG)
-                .setMinimumFetchIntervalInSeconds(4200)
-                .build()
-        remoteConfig.setConfigSettings(configSettings)
+        val configSettings = remoteConfigSettings {
+            minimumFetchIntervalInSeconds = 3600
+        }
+        remoteConfig.setConfigSettingsAsync(configSettings)
         // [END enable_dev_mode]
 
         // Set default Remote Config parameter values. An app uses the in-app default values, and
@@ -42,7 +44,7 @@ class MainActivity : AppCompatActivity() {
         // want to change in the Firebase console. See Best Practices in the README for more
         // information.
         // [START set_default_values]
-        remoteConfig.setDefaults(R.xml.remote_config_defaults)
+        remoteConfig.setDefaultsAsync(R.xml.remote_config_defaults)
         // [END set_default_values]
 
         fetchWelcome()
@@ -52,13 +54,13 @@ class MainActivity : AppCompatActivity() {
      * Fetch a welcome message from the Remote Config service, and then activate it.
      */
     private fun fetchWelcome() {
-        welcomeTextView.text = remoteConfig.getString(LOADING_PHRASE_CONFIG_KEY)
+        binding.welcomeTextView.text = remoteConfig[LOADING_PHRASE_CONFIG_KEY].asString()
 
         // [START fetch_config_with_callback]
         remoteConfig.fetchAndActivate()
                 .addOnCompleteListener(this) { task ->
                     if (task.isSuccessful) {
-                        val updated = task.getResult()
+                        val updated = task.result
                         Log.d(TAG, "Config params updated: $updated")
                         Toast.makeText(this, "Fetch and activate succeeded",
                                 Toast.LENGTH_SHORT).show()
@@ -78,10 +80,10 @@ class MainActivity : AppCompatActivity() {
     // [START display_welcome_message]
     private fun displayWelcomeMessage() {
         // [START get_config_values]
-        val welcomeMessage = remoteConfig.getString(WELCOME_MESSAGE_KEY)
+        val welcomeMessage = remoteConfig[WELCOME_MESSAGE_KEY].asString()
         // [END get_config_values]
-        welcomeTextView.isAllCaps = remoteConfig.getBoolean(WELCOME_MESSAGE_CAPS_KEY)
-        welcomeTextView.text = welcomeMessage
+        binding.welcomeTextView.isAllCaps = remoteConfig[WELCOME_MESSAGE_CAPS_KEY].asBoolean()
+        binding.welcomeTextView.text = welcomeMessage
     }
 
     companion object {

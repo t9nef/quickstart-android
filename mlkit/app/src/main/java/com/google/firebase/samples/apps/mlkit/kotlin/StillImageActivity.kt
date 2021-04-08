@@ -1,35 +1,41 @@
 package com.google.firebase.samples.apps.mlkit.kotlin
 
 import android.app.Activity
+import android.content.pm.PackageManager
 import android.content.ContentValues
+import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import androidx.appcompat.app.AppCompatActivity
 import android.util.Log
 import android.util.Pair
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.PopupMenu
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.google.android.gms.common.annotation.KeepName
 import com.google.firebase.samples.apps.mlkit.R
 import com.google.firebase.samples.apps.mlkit.common.VisionImageProcessor
+import com.google.firebase.samples.apps.mlkit.common.preference.SettingsActivity
+import com.google.firebase.samples.apps.mlkit.common.preference.SettingsActivity.LaunchSource
+import com.google.firebase.samples.apps.mlkit.databinding.ActivityStillImageBinding
 import com.google.firebase.samples.apps.mlkit.kotlin.cloudimagelabeling.CloudImageLabelingProcessor
 import com.google.firebase.samples.apps.mlkit.kotlin.cloudlandmarkrecognition.CloudLandmarkRecognitionProcessor
 import com.google.firebase.samples.apps.mlkit.kotlin.cloudtextrecognition.CloudDocumentTextRecognitionProcessor
 import com.google.firebase.samples.apps.mlkit.kotlin.cloudtextrecognition.CloudTextRecognitionProcessor
-import kotlinx.android.synthetic.main.activity_still_image.controlPanel
-import kotlinx.android.synthetic.main.activity_still_image.featureSelector
-import kotlinx.android.synthetic.main.activity_still_image.getImageButton
-import kotlinx.android.synthetic.main.activity_still_image.previewOverlay
-import kotlinx.android.synthetic.main.activity_still_image.previewPane
-import kotlinx.android.synthetic.main.activity_still_image.sizeSelector
 import java.io.IOException
 import java.util.ArrayList
+import kotlin.math.max
 
 /** Activity demonstrating different image detector features with a still image from camera.  */
 @KeepName
@@ -45,15 +51,16 @@ class StillImageActivity : AppCompatActivity() {
     private var imageMaxWidth = 0
     // Max height (portrait mode)
     private var imageMaxHeight = 0
-    private var bitmapForDetection: Bitmap? = null
     private var imageProcessor: VisionImageProcessor? = null
+
+    private lateinit var binding: ActivityStillImageBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        binding = ActivityStillImageBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        setContentView(R.layout.activity_still_image)
-
-        getImageButton.setOnClickListener { view ->
+        binding.getImageButton.setOnClickListener { view ->
                     // Menu for selecting either: a) take new photo b) select from existing
                     val popup = PopupMenu(this, view)
                     popup.setOnMenuItemClickListener { menuItem ->
@@ -74,12 +81,6 @@ class StillImageActivity : AppCompatActivity() {
                     inflater.inflate(R.menu.camera_button_menu, popup.menu)
                     popup.show()
                 }
-        if (previewPane == null) {
-            Log.d(TAG, "Preview is null")
-        }
-        if (previewOverlay == null) {
-            Log.d(TAG, "graphicOverlay is null")
-        }
 
         populateFeatureSelector()
         populateSizeSelector()
@@ -92,12 +93,90 @@ class StillImageActivity : AppCompatActivity() {
             imageUri = it.getParcelable(KEY_IMAGE_URI)
             imageMaxWidth = it.getInt(KEY_IMAGE_MAX_WIDTH)
             imageMaxHeight = it.getInt(KEY_IMAGE_MAX_HEIGHT)
-            selectedSize = it.getString(KEY_SELECTED_SIZE)
+            selectedSize = it.getString(KEY_SELECTED_SIZE, "")
 
             imageUri?.let { _ ->
                 tryReloadAndDetectInImage()
             }
         }
+
+        if (!allPermissionsGranted()) {
+            getRuntimePermissions()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        Log.d(TAG, "onResume")
+        createImageProcessor()
+        tryReloadAndDetectInImage()
+    }
+
+    private fun getRequiredPermissions(): Array<String?> {
+        return try {
+            val info = this.packageManager
+                    .getPackageInfo(this.packageName, PackageManager.GET_PERMISSIONS)
+            val ps = info.requestedPermissions
+            if (ps != null && ps.isNotEmpty()) {
+                ps
+            } else {
+                arrayOfNulls(0)
+            }
+        } catch (e: Exception) {
+            arrayOfNulls(0)
+        }
+    }
+
+    private fun allPermissionsGranted(): Boolean {
+        for (permission in getRequiredPermissions()) {
+            permission?.let {
+                if (!isPermissionGranted(this, it)) {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+
+    private fun getRuntimePermissions() {
+        val allNeededPermissions = ArrayList<String>()
+        for (permission in getRequiredPermissions()) {
+            permission?.let {
+                if (!isPermissionGranted(this, it)) {
+                    allNeededPermissions.add(permission)
+                }
+            }
+        }
+
+        if (allNeededPermissions.isNotEmpty()) {
+            ActivityCompat.requestPermissions(
+                    this, allNeededPermissions.toTypedArray(), PERMISSION_REQUESTS)
+        }
+    }
+
+    private fun isPermissionGranted(context: Context, permission: String): Boolean {
+        if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
+            Log.i(TAG, "Permission granted: $permission")
+            return true
+        }
+        Log.i(TAG, "Permission NOT granted: $permission")
+        return false
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu?): Boolean {
+        menuInflater.inflate(R.menu.still_image_menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == R.id.settings) {
+            val intent = Intent(this, SettingsActivity::class.java)
+            intent.putExtra(SettingsActivity.EXTRA_LAUNCH_SOURCE, LaunchSource.STILL_IMAGE)
+            startActivity(intent)
+            return true
+        }
+
+        return super.onOptionsItemSelected(item)
     }
 
     private fun populateFeatureSelector() {
@@ -111,8 +190,8 @@ class StillImageActivity : AppCompatActivity() {
         // Drop down layout style - list view with radio button
         dataAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         // attaching data adapter to spinner
-        featureSelector.adapter = dataAdapter
-        featureSelector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+        binding.featureSelector.adapter = dataAdapter
+        binding.featureSelector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
 
             override fun onItemSelected(
                 parentView: AdapterView<*>,
@@ -140,8 +219,8 @@ class StillImageActivity : AppCompatActivity() {
         // Drop down layout style - list view with radio button
         dataAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         // attaching data adapter to spinner
-        sizeSelector.adapter = dataAdapter
-        sizeSelector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+        binding.sizeSelector.adapter = dataAdapter
+        binding.sizeSelector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
 
             override fun onItemSelected(
                 parentView: AdapterView<*>,
@@ -171,7 +250,7 @@ class StillImageActivity : AppCompatActivity() {
     private fun startCameraIntentForResult() {
         // Clean up last time's image
         imageUri = null
-        previewPane?.setImageBitmap(null)
+        binding.previewPane.setImageBitmap(null)
 
         val takePictureIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
         takePictureIntent.resolveActivity(packageManager)?.let {
@@ -192,6 +271,7 @@ class StillImageActivity : AppCompatActivity() {
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == Activity.RESULT_OK) {
             tryReloadAndDetectInImage()
         } else if (requestCode == REQUEST_CHOOSE_IMAGE && resultCode == Activity.RESULT_OK) {
@@ -208,9 +288,14 @@ class StillImageActivity : AppCompatActivity() {
             }
 
             // Clear the overlay first
-            previewOverlay?.clear()
+            binding.previewOverlay.clear()
 
-            val imageBitmap = MediaStore.Images.Media.getBitmap(contentResolver, imageUri)
+            val imageBitmap = if (Build.VERSION.SDK_INT < 29) {
+                MediaStore.Images.Media.getBitmap(contentResolver, imageUri)
+            } else {
+                val source = ImageDecoder.createSource(contentResolver, imageUri!!)
+                ImageDecoder.decodeBitmap(source)
+            }
 
             // Get the dimensions of the View
             val targetedSize = getTargetedWidthHeight()
@@ -219,7 +304,7 @@ class StillImageActivity : AppCompatActivity() {
             val maxHeight = targetedSize.second
 
             // Determine how much to scale down the image
-            val scaleFactor = Math.max(
+            val scaleFactor = max(
                     imageBitmap.width.toFloat() / targetWidth.toFloat(),
                     imageBitmap.height.toFloat() / maxHeight.toFloat())
 
@@ -229,10 +314,9 @@ class StillImageActivity : AppCompatActivity() {
                     (imageBitmap.height / scaleFactor).toInt(),
                     true)
 
-            previewPane?.setImageBitmap(resizedBitmap)
-            bitmapForDetection = resizedBitmap
-            bitmapForDetection?.let {
-                imageProcessor?.process(it, previewOverlay)
+            binding.previewPane.setImageBitmap(resizedBitmap)
+            resizedBitmap?.let {
+                imageProcessor?.process(it, binding.previewOverlay)
             }
         } catch (e: IOException) {
             Log.e(TAG, "Error retrieving saved image")
@@ -246,9 +330,9 @@ class StillImageActivity : AppCompatActivity() {
             // Calculate the max width in portrait mode. This is done lazily since we need to wait for
             // a UI layout pass to get the right values. So delay it to first time image rendering time.
             imageMaxWidth = if (isLandScape) {
-                (previewPane.parent as View).height - controlPanel.height
+                (binding.previewPane.parent as View).height - binding.controlPanel.height
             } else {
-                (previewPane.parent as View).width
+                (binding.previewPane.parent as View).width
             }
         }
 
@@ -262,9 +346,9 @@ class StillImageActivity : AppCompatActivity() {
             // Calculate the max width in portrait mode. This is done lazily since we need to wait for
             // a UI layout pass to get the right values. So delay it to first time image rendering time.
             imageMaxHeight = if (isLandScape) {
-                (previewPane.parent as View).width
+                (binding.previewPane.parent as View).width
             } else {
-                (previewPane.parent as View).height - controlPanel.height
+                (binding.previewPane.parent as View).height - binding.controlPanel.height
             }
         }
 
@@ -273,8 +357,8 @@ class StillImageActivity : AppCompatActivity() {
 
     // Gets the targeted width / height.
     private fun getTargetedWidthHeight(): Pair<Int, Int> {
-        var targetWidth = 0
-        var targetHeight = 0
+        val targetWidth: Int
+        val targetHeight: Int
 
         when (selectedSize) {
             SIZE_PREVIEW -> {
@@ -310,6 +394,8 @@ class StillImageActivity : AppCompatActivity() {
     companion object {
 
         private const val TAG = "StillImageActivity"
+
+        private const val PERMISSION_REQUESTS = 1
 
         private const val CLOUD_LABEL_DETECTION = "Cloud Label"
         private const val CLOUD_LANDMARK_DETECTION = "Landmark"

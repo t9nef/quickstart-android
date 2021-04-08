@@ -6,19 +6,18 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.DialogFragment
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.example.fireeats.R
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.example.fireeats.databinding.DialogRatingBinding
 import com.google.firebase.example.fireeats.kotlin.model.Rating
-import kotlinx.android.synthetic.main.dialog_rating.restaurantFormRating
-import kotlinx.android.synthetic.main.dialog_rating.restaurantFormText
-import kotlinx.android.synthetic.main.dialog_rating.view.restaurantFormButton
-import kotlinx.android.synthetic.main.dialog_rating.view.restaurantFormCancel
+import com.google.firebase.ktx.Firebase
 
 /**
  * Dialog Fragment containing rating form.
  */
 class RatingDialogFragment : DialogFragment() {
 
+    private var _binding: DialogRatingBinding? = null
+    private val binding get() = _binding!!
     private var ratingListener: RatingListener? = null
 
     internal interface RatingListener {
@@ -31,36 +30,41 @@ class RatingDialogFragment : DialogFragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        val v = inflater.inflate(R.layout.dialog_rating, container, false)
+        _binding = DialogRatingBinding.inflate(inflater, container, false)
 
-        v.restaurantFormButton.setOnClickListener { onSubmitClicked() }
-        v.restaurantFormCancel.setOnClickListener { onCancelClicked() }
+        binding.restaurantFormButton.setOnClickListener { onSubmitClicked() }
+        binding.restaurantFormCancel.setOnClickListener { onCancelClicked() }
 
-        return v
+        return binding.root
     }
 
-    override fun onAttach(context: Context?) {
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+
+    override fun onAttach(context: Context) {
         super.onAttach(context)
 
-        if (context is RatingListener) {
-            ratingListener = context
+        if (parentFragment is RatingListener) {
+            ratingListener = parentFragment as RatingListener
         }
     }
 
     override fun onResume() {
         super.onResume()
-        dialog.window?.setLayout(
+        dialog?.window?.setLayout(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT)
     }
 
     private fun onSubmitClicked() {
-        val user = FirebaseAuth.getInstance().currentUser
+        val user = Firebase.auth.currentUser
         user?.let {
             val rating = Rating(
-                    user,
-                    restaurantFormRating.rating.toDouble(),
-                    restaurantFormText.text.toString())
+                    it,
+                    binding.restaurantFormRating.rating.toDouble(),
+                    binding.restaurantFormText.text.toString())
 
             ratingListener?.onRating(rating)
         }

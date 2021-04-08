@@ -21,10 +21,10 @@
 
 package com.google.firebase.quickstart.analytics.java;
 
+import android.annotation.SuppressLint;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
-import android.preference.PreferenceManager;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -34,10 +34,12 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentPagerAdapter;
+import androidx.preference.PreferenceManager;
 import androidx.viewpager.widget.ViewPager;
 
 import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.quickstart.analytics.R;
+import com.google.firebase.quickstart.analytics.databinding.ActivityMainBinding;
 
 import java.util.Locale;
 
@@ -57,8 +59,10 @@ public class MainActivity extends AppCompatActivity {
             new ImageInfo(R.drawable.whitebalance, R.string.pattern4_title, R.string.pattern4_id),
     };
 
+    private ActivityMainBinding binding;
+
     /**
-     * The {@link androidx.core.view.PagerAdapter} that will provide fragments for each image.
+     * The {@link androidx.viewpager.widget.PagerAdapter} that will provide fragments for each image.
      * This uses a {@link FragmentPagerAdapter}, which keeps every loaded fragment in memory.
      */
     private ImagePagerAdapter mImagePagerAdapter;
@@ -83,7 +87,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        binding = ActivityMainBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
 
         // [START shared_app_measurement]
         // Obtain the FirebaseAnalytics instance.
@@ -104,12 +109,12 @@ public class MainActivity extends AppCompatActivity {
         mImagePagerAdapter = new ImagePagerAdapter(getSupportFragmentManager(), IMAGE_INFOS);
 
         // Set up the ViewPager with the pattern adapter.
-        mViewPager = findViewById(R.id.viewPager);
+        mViewPager = binding.viewPager;
         mViewPager.setAdapter(mImagePagerAdapter);
 
         // Workaround for AppCompat issue not showing ViewPager titles
         ViewPager.LayoutParams params = (ViewPager.LayoutParams)
-                findViewById(R.id.pagerTabStrip).getLayoutParams();
+                binding.pagerTabStrip.getLayoutParams();
         params.isDecor = true;
 
         // When the visible image changes, send a screen view hit.
@@ -250,11 +255,14 @@ public class MainActivity extends AppCompatActivity {
      * we change fragments.
      */
     private void recordScreenView() {
-        // This string must be <= 36 characters long in order for setCurrentScreen to succeed.
+        // This string must be <= 36 characters long.
         String screenName = getCurrentImageId() + "-" + getCurrentImageTitle();
 
         // [START set_current_screen]
-        mFirebaseAnalytics.setCurrentScreen(this, screenName, null /* class override */);
+        Bundle bundle = new Bundle();
+        bundle.putString(FirebaseAnalytics.Param.SCREEN_NAME, screenName);
+        bundle.putString(FirebaseAnalytics.Param.SCREEN_CLASS, "MainActivity");
+        mFirebaseAnalytics.logEvent(FirebaseAnalytics.Event.SCREEN_VIEW, bundle);
         // [END set_current_screen]
     }
 
@@ -266,8 +274,9 @@ public class MainActivity extends AppCompatActivity {
 
         private final ImageInfo[] infos;
 
+        @SuppressLint("WrongConstant")
         public ImagePagerAdapter(FragmentManager fm, ImageInfo[] infos) {
-            super(fm);
+            super(fm, BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT);
             this.infos = infos;
         }
 

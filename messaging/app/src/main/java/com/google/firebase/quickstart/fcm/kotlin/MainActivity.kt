@@ -8,17 +8,17 @@ import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.gms.tasks.OnCompleteListener
-import com.google.firebase.iid.FirebaseInstanceId
-import com.google.firebase.messaging.FirebaseMessaging
+import com.google.firebase.ktx.Firebase
+import com.google.firebase.messaging.ktx.messaging
 import com.google.firebase.quickstart.fcm.R
-import kotlinx.android.synthetic.main.activity_main.logTokenButton
-import kotlinx.android.synthetic.main.activity_main.subscribeButton
+import com.google.firebase.quickstart.fcm.databinding.ActivityMainBinding
 
 class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        val binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             // Create channel to show notifications.
@@ -46,10 +46,10 @@ class MainActivity : AppCompatActivity() {
         }
         // [END handle_data_extras]
 
-        subscribeButton.setOnClickListener {
+        binding.subscribeButton.setOnClickListener {
             Log.d(TAG, "Subscribing to weather topic")
             // [START subscribe_topics]
-            FirebaseMessaging.getInstance().subscribeToTopic("weather")
+            Firebase.messaging.subscribeToTopic("weather")
                     .addOnCompleteListener { task ->
                         var msg = getString(R.string.msg_subscribed)
                         if (!task.isSuccessful) {
@@ -61,25 +61,24 @@ class MainActivity : AppCompatActivity() {
             // [END subscribe_topics]
         }
 
-        logTokenButton.setOnClickListener {
+        binding.logTokenButton.setOnClickListener {
             // Get token
-            // [START retrieve_current_token]
-            FirebaseInstanceId.getInstance().instanceId
-                    .addOnCompleteListener(OnCompleteListener { task ->
-                        if (!task.isSuccessful) {
-                            Log.w(TAG, "getInstanceId failed", task.exception)
-                            return@OnCompleteListener
-                        }
+            // [START log_reg_token]
+            Firebase.messaging.getToken().addOnCompleteListener(OnCompleteListener { task ->
+                if (!task.isSuccessful) {
+                    Log.w(TAG, "Fetching FCM registration token failed", task.exception)
+                    return@OnCompleteListener
+                }
 
-                        // Get new Instance ID token
-                        val token = task.result?.token
+                // Get new FCM registration token
+                val token = task.result
 
-                        // Log and toast
-                        val msg = getString(R.string.msg_token_fmt, token)
-                        Log.d(TAG, msg)
-                        Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
-                    })
-            // [END retrieve_current_token]
+                // Log and toast
+                val msg = getString(R.string.msg_token_fmt, token)
+                Log.d(TAG, msg)
+                Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
+            })
+            // [END log_reg_token]
         }
 
         Toast.makeText(this, "See README for setup instructions", Toast.LENGTH_SHORT).show()

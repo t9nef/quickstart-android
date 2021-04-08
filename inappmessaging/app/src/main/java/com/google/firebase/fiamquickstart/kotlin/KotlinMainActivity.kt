@@ -1,16 +1,18 @@
 package com.google.firebase.fiamquickstart.kotlin
 
 import android.os.Bundle
-import com.google.android.material.snackbar.Snackbar
-import androidx.appcompat.app.AppCompatActivity
 import android.util.Log
-import com.google.android.gms.tasks.OnSuccessListener
+import androidx.appcompat.app.AppCompatActivity
+import com.google.android.material.snackbar.Snackbar
 import com.google.firebase.analytics.FirebaseAnalytics
+import com.google.firebase.analytics.ktx.analytics
 import com.google.firebase.fiamquickstart.R
-import com.google.firebase.iid.FirebaseInstanceId
-import com.google.firebase.iid.InstanceIdResult
+import com.google.firebase.fiamquickstart.databinding.ActivityMainBinding
 import com.google.firebase.inappmessaging.FirebaseInAppMessaging
-import kotlinx.android.synthetic.main.activity_main.*
+import com.google.firebase.inappmessaging.ktx.inAppMessaging
+import com.google.firebase.installations.FirebaseInstallations
+import com.google.firebase.installations.ktx.installations
+import com.google.firebase.ktx.Firebase
 
 class KotlinMainActivity : AppCompatActivity() {
 
@@ -19,30 +21,28 @@ class KotlinMainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        val binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        firebaseAnalytics = FirebaseAnalytics.getInstance(this)
-        firebaseIam = FirebaseInAppMessaging.getInstance()
+        firebaseAnalytics = Firebase.analytics
+        firebaseIam = Firebase.inAppMessaging
 
         firebaseIam.isAutomaticDataCollectionEnabled = true
         firebaseIam.setMessagesSuppressed(false)
 
-        eventTriggerButton.setOnClickListener { view ->
+        binding.eventTriggerButton.setOnClickListener { view ->
             firebaseAnalytics.logEvent("engagement_party", Bundle())
             Snackbar.make(view, "'engagement_party' event triggered!", Snackbar.LENGTH_LONG)
                     .setAction("Action", null)
                     .show()
         }
 
-        // Get and display/log the Instance ID
-        FirebaseInstanceId.getInstance().instanceId
-                .addOnSuccessListener(object : OnSuccessListener<InstanceIdResult> {
-                    override fun onSuccess(instanceIdResult: InstanceIdResult) {
-                        val instanceId = instanceIdResult.id
-                        instanceIdText.text = getString(R.string.instance_id_fmt, instanceId)
-                        Log.d(TAG, "InstanceId: $instanceId")
-                    }
-                })
+        // Get and display/log the installation id
+        Firebase.installations.getId()
+                .addOnSuccessListener { id ->
+                    binding.installationIdText.text = getString(R.string.installation_id_fmt, id)
+                    Log.d(TAG, "Installation ID: $id")
+                }
     }
 
     companion object {

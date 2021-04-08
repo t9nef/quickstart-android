@@ -1,6 +1,5 @@
 package com.google.firebase.quickstart.firebasestorage.kotlin
 
-import android.app.Service
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
@@ -8,9 +7,12 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.google.firebase.ktx.Firebase
 import com.google.firebase.quickstart.firebasestorage.R
-import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageReference
+import com.google.firebase.storage.ktx.component1
+import com.google.firebase.storage.ktx.component2
+import com.google.firebase.storage.ktx.storage
 
 /**
  * Service to handle uploading files to Firebase Storage.
@@ -25,7 +27,7 @@ class MyUploadService : MyBaseTaskService() {
         super.onCreate()
 
         // [START get_storage_ref]
-        storageRef = FirebaseStorage.getInstance().reference
+        storageRef = Firebase.storage.reference
         // [END get_storage_ref]
     }
 
@@ -36,7 +38,7 @@ class MyUploadService : MyBaseTaskService() {
     override fun onStartCommand(intent: Intent, flags: Int, startId: Int): Int {
         Log.d(TAG, "onStartCommand:$intent:$startId")
         if (ACTION_UPLOAD == intent.action) {
-            val fileUri = intent.getParcelableExtra<Uri>(EXTRA_FILE_URI)
+            val fileUri = intent.getParcelableExtra<Uri>(EXTRA_FILE_URI)!!
 
             // Make sure we have permission to read the data
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
@@ -48,12 +50,12 @@ class MyUploadService : MyBaseTaskService() {
             uploadFromUri(fileUri)
         }
 
-        return Service.START_REDELIVER_INTENT
+        return START_REDELIVER_INTENT
     }
 
     // [START upload_from_uri]
     private fun uploadFromUri(fileUri: Uri) {
-        Log.d(TAG, "uploadFromUri:src:" + fileUri.toString())
+        Log.d(TAG, "uploadFromUri:src:$fileUri")
 
         // [START_EXCLUDE]
         taskStarted()
@@ -62,44 +64,46 @@ class MyUploadService : MyBaseTaskService() {
 
         // [START get_child_ref]
         // Get a reference to store file at photos/<FILENAME>.jpg
-        val photoRef = storageRef.child("photos")
-                .child(fileUri.lastPathSegment)
-        // [END get_child_ref]
+        fileUri.lastPathSegment?.let {
+            val photoRef = storageRef.child("photos")
+                    .child(it)
+            // [END get_child_ref]
 
-        // Upload file to Firebase Storage
-        Log.d(TAG, "uploadFromUri:dst:" + photoRef.path)
-        photoRef.putFile(fileUri).addOnProgressListener { taskSnapshot ->
-            showProgressNotification(getString(R.string.progress_uploading),
-                    taskSnapshot.bytesTransferred,
-                    taskSnapshot.totalByteCount)
-        }.continueWithTask { task ->
-            // Forward any exceptions
-            if (!task.isSuccessful) {
-                throw task.exception!!
+            // Upload file to Firebase Storage
+            Log.d(TAG, "uploadFromUri:dst:" + photoRef.path)
+            photoRef.putFile(fileUri).addOnProgressListener { (bytesTransferred, totalByteCount) ->
+                showProgressNotification(getString(R.string.progress_uploading),
+                        bytesTransferred,
+                        totalByteCount)
+            }.continueWithTask { task ->
+                // Forward any exceptions
+                if (!task.isSuccessful) {
+                    throw task.exception!!
+                }
+
+                Log.d(TAG, "uploadFromUri: upload success")
+
+                // Request the public download URL
+                photoRef.downloadUrl
+            }.addOnSuccessListener { downloadUri ->
+                // Upload succeeded
+                Log.d(TAG, "uploadFromUri: getDownloadUri success")
+
+                // [START_EXCLUDE]
+                broadcastUploadFinished(downloadUri, fileUri)
+                showUploadFinishedNotification(downloadUri, fileUri)
+                taskCompleted()
+                // [END_EXCLUDE]
+            }.addOnFailureListener { exception ->
+                // Upload failed
+                Log.w(TAG, "uploadFromUri:onFailure", exception)
+
+                // [START_EXCLUDE]
+                broadcastUploadFinished(null, fileUri)
+                showUploadFinishedNotification(null, fileUri)
+                taskCompleted()
+                // [END_EXCLUDE]
             }
-
-            Log.d(TAG, "uploadFromUri: upload success")
-
-            // Request the public download URL
-            photoRef.downloadUrl
-        }.addOnSuccessListener { downloadUri ->
-            // Upload succeeded
-            Log.d(TAG, "uploadFromUri: getDownloadUri success")
-
-            // [START_EXCLUDE]
-            broadcastUploadFinished(downloadUri, fileUri)
-            showUploadFinishedNotification(downloadUri, fileUri)
-            taskCompleted()
-            // [END_EXCLUDE]
-        }.addOnFailureListener { exception ->
-            // Upload failed
-            Log.w(TAG, "uploadFromUri:onFailure", exception)
-
-            // [START_EXCLUDE]
-            broadcastUploadFinished(null, fileUri)
-            showUploadFinishedNotification(null, fileUri)
-            taskCompleted()
-            // [END_EXCLUDE]
         }
     }
     // [END upload_from_uri]

@@ -38,4 +38,10 @@ the sample you wish to run.
 ## How to make contributions?
 Please read and follow the steps in the [CONTRIBUTING.md](CONTRIBUTING.md)
 
-[![Build Status](https://travis-ci.org/firebase/quickstart-android.svg?branch=master)](https://travis-ci.org/firebase/quickstart-android)
+[![Actions Status][gh-actions-badge]][gh-actions]
+[![SAM Score][sam-score-badge]][sam-score]
+
+[gh-actions]: https://github.com/firebase/quickstart-android/actions
+[gh-actions-badge]: https://github.com/firebase/quickstart-android/workflows/Android%20CI/badge.svg
+[sam-score]: https://ossbot.computer/samscore.html
+[sam-score-badge]: https://ossbot.computer/samscorebadge?org=firebase&repo=quickstart-android

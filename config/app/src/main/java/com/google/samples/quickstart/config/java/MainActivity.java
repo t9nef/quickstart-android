@@ -34,8 +34,8 @@ import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig;
 import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings;
-import com.google.samples.quickstart.config.BuildConfig;
 import com.google.samples.quickstart.config.R;
+import com.google.samples.quickstart.config.databinding.ActivityMainBinding;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -47,17 +47,17 @@ public class MainActivity extends AppCompatActivity {
     private static final String WELCOME_MESSAGE_CAPS_KEY = "welcome_message_caps";
 
     private FirebaseRemoteConfig mFirebaseRemoteConfig;
+    private ActivityMainBinding mBinding;
     private TextView mWelcomeTextView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        mBinding = ActivityMainBinding.inflate(getLayoutInflater());
+        setContentView(mBinding.getRoot());
 
-        mWelcomeTextView = findViewById(R.id.welcomeTextView);
-
-        Button fetchButton = findViewById(R.id.fetchButton);
-        fetchButton.setOnClickListener(new View.OnClickListener() {
+        mWelcomeTextView = mBinding.welcomeTextView;
+        mBinding.fetchButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 fetchWelcome();
@@ -74,10 +74,9 @@ public class MainActivity extends AppCompatActivity {
         // Setting to set the minimum fetch interval.
         // [START enable_dev_mode]
         FirebaseRemoteConfigSettings configSettings = new FirebaseRemoteConfigSettings.Builder()
-                .setDeveloperModeEnabled(BuildConfig.DEBUG)
                 .setMinimumFetchIntervalInSeconds(3600)
                 .build();
-        mFirebaseRemoteConfig.setConfigSettings(configSettings);
+        mFirebaseRemoteConfig.setConfigSettingsAsync(configSettings);
         // [END enable_dev_mode]
 
         // Set default Remote Config parameter values. An app uses the in-app default values, and
@@ -85,7 +84,7 @@ public class MainActivity extends AppCompatActivity {
         // want to change in the Firebase console. See Best Practices in the README for more
         // information.
         // [START set_default_values]
-        mFirebaseRemoteConfig.setDefaults(R.xml.remote_config_defaults);
+        mFirebaseRemoteConfig.setDefaultsAsync(R.xml.remote_config_defaults);
         // [END set_default_values]
 
         fetchWelcome();

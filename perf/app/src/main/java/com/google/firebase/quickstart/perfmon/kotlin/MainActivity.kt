@@ -1,31 +1,32 @@
 package com.google.firebase.quickstart.perfmon.kotlin
 
 import android.graphics.drawable.ColorDrawable
-import android.os.AsyncTask
 import android.os.Bundle
 import androidx.core.content.ContextCompat
 import androidx.appcompat.app.AppCompatActivity
 import android.util.Log
 import android.widget.Toast
+import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.drawable.GlideDrawable
 import com.bumptech.glide.request.RequestListener
 import com.bumptech.glide.request.target.Target
 import com.google.android.gms.tasks.OnCompleteListener
 import com.google.android.gms.tasks.Task
-import com.google.android.gms.tasks.Tasks
-import com.google.firebase.perf.FirebasePerformance
+import com.google.android.gms.tasks.TaskCompletionSource
+import com.google.firebase.ktx.Firebase
+import com.google.firebase.perf.ktx.performance
 import com.google.firebase.perf.metrics.Trace
 import com.google.firebase.quickstart.perfmon.R
-import kotlinx.android.synthetic.main.activity_main.button
-import kotlinx.android.synthetic.main.activity_main.headerIcon
-import kotlinx.android.synthetic.main.activity_main.textViewContent
+import com.google.firebase.quickstart.perfmon.databinding.ActivityMainBinding
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.util.Random
-import java.util.concurrent.Callable
 import java.util.concurrent.CountDownLatch
 
 class MainActivity : AppCompatActivity() {
@@ -34,11 +35,14 @@ class MainActivity : AppCompatActivity() {
 
     private val numStartupTasks = CountDownLatch(2)
 
+    private lateinit var binding: ActivityMainBinding
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        button.setOnClickListener {
+        binding.button.setOnClickListener {
             // write 40 chars of random text to file
             val contentFile = File(this.filesDir, CONTENT_FILE)
 
@@ -54,7 +58,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         // Begin tracing app startup tasks.
-        trace = FirebasePerformance.getInstance().newTrace(STARTUP_TRACE_NAME)
+        trace = Firebase.performance.newTrace(STARTUP_TRACE_NAME)
         Log.d(TAG, "Starting trace")
         trace.start()
         loadImageFromWeb()
@@ -103,42 +107,46 @@ class MainActivity : AppCompatActivity() {
                         numStartupTasks.countDown() // Signal end of image load task.
                         return false
                     }
-                }).into(headerIcon)
+                }).into(binding.headerIcon)
     }
 
     private fun writeStringToFile(filename: String, content: String): Task<Void> {
-        return Tasks.call(
-                AsyncTask.THREAD_POOL_EXECUTOR,
-                Callable<Void> {
-                    val fos = FileOutputStream(filename, true)
-                    fos.write(content.toByteArray())
-                    fos.close()
-                    null
-                })
+        val taskCompletionSource = TaskCompletionSource<Void>()
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) {
+                val fos = FileOutputStream(filename, true)
+                fos.write(content.toByteArray())
+                fos.close()
+                taskCompletionSource.setResult(null)
+            }
+        }
+        return taskCompletionSource.task
     }
 
     private fun loadStringFromFile(): Task<String> {
-        return Tasks.call(
-                AsyncTask.THREAD_POOL_EXECUTOR,
-                Callable {
-                    val contentFile = File(filesDir, CONTENT_FILE)
-                    if (contentFile.createNewFile()) {
-                        // Content file exist did not exist in internal storage and new file was created.
-                        // Copy in the default content.
-                        val `is`: InputStream = assets.open(DEFAULT_CONTENT_FILE)
-                        val size = `is`.available()
-                        val buffer = ByteArray(size)
-                        `is`.read(buffer)
-                        `is`.close()
-                        val fos = FileOutputStream(contentFile)
-                        fos.write(buffer)
-                        fos.close()
-                    }
-                    val fis = FileInputStream(contentFile)
-                    val content = ByteArray(contentFile.length().toInt())
-                    fis.read(content)
-                    return@Callable String(content)
-                })
+        val taskCompletionSource = TaskCompletionSource<String>()
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) {
+                val contentFile = File(filesDir, CONTENT_FILE)
+                if (contentFile.createNewFile()) {
+                    // Content file exist did not exist in internal storage and new file was created.
+                    // Copy in the default content.
+                    val `is`: InputStream = assets.open(DEFAULT_CONTENT_FILE)
+                    val size = `is`.available()
+                    val buffer = ByteArray(size)
+                    `is`.read(buffer)
+                    `is`.close()
+                    val fos = FileOutputStream(contentFile)
+                    fos.write(buffer)
+                    fos.close()
+                }
+                val fis = FileInputStream(contentFile)
+                val content = ByteArray(contentFile.length().toInt())
+                fis.read(content)
+                taskCompletionSource.setResult(String(content))
+            }
+        }
+        return taskCompletionSource.task
     }
 
     private fun loadFileFromDisk() {
@@ -153,7 +161,7 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     val fileContent = task.result
-                    textViewContent.text = task.result
+                    binding.textViewContent.text = task.result
                     // Increment a counter with the file size that was read.
                     Log.d(TAG, "Incrementing file size counter in trace")
                     trace.incrementMetric(
